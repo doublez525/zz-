@@ -1,0 +1,51 @@
+name: Codex 自动检查与修复
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: codex-auto-debug-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  auto-debug:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Codex 检查、调试与修复
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/codex/prompts/auto-debug.md
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+
+      - name: 创建自动修复 PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ github.token }}
+          branch: codex/auto-fix
+          delete-branch: true
+          commit-message: "fix: Codex 自动修复"
+          title: "fix: Codex 自动检查修复"
+          body: |
+            ## Codex 自动调试记录
+
+            此 PR 由推送至 `main` 后的自动检查创建。请审阅以下执行记录后再合并。
+
+            ${{ steps.codex.outputs.final-message }}
+          draft: false
